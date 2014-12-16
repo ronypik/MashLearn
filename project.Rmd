@@ -1,0 +1,119 @@
+Practical Machine Learning - Course Project
+========================================================
+
+Background
+-------------
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement.
+We received data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The **goal of the project** is to define the model to classify the "classe" value using  predictors from the training data set.
+
+This model then will be used to predict outputs to each of the 20 test cases in the testing data set.
+
+Data 
+------------
+The **training data** for this project are available here: 
+  https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The **testing data** are available here: 
+  https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+## Data load
+
+Missing data is coded as  "NA","#DIV/0!", "","?"  is changed to NA.
+```{r}
+# Import datasets from WEB URL
+# download.file('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv',
+#              'c:\\works\\pml-training.csv')
+# download.file('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv',
+#              'c:\\works\\pml-testing.csv')
+pml_training <- read.csv("C:/Works/pml-training.csv",na.strings=c("NA","#DIV/0!", "","?"))
+pml_testing <- read.csv("C:/Works/pml-testing.csv", ,na.strings=c("NA","#DIV/0!", "","?"))
+
+```
+
+
+Data Pre-Processing
+------------
+### Coloumns with NA
+Coloumns with NA count more then 0 are dropped.  
+```{r}
+pml_training <-pml_training[,colSums(is.na(pml_training)) == 0 ]
+pml_testing <- pml_testing[,colSums(is.na(pml_testing)) == 0 ]
+```
+
+### Coloumns with general information
+Coloumns with general information: X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, new_window, num_window are also dropped. 
+```{r}
+trainingset <-pml_training[,-c(1:7)]
+testingset <-pml_testing[,-c(1:7)]
+```
+
+### Identifying Zero- and Near Zero-Variance Predictors
+```{r  warning=FALSE ,message=FALSE}
+library(caret)
+# nearZdata <- nearZeroVar(trainingset, saveMetrics = TRUE)
+# nearZdata[nearZdata$nzv == TRUE, ]
+```
+We have no Near Zero-Variance Predictors to drop them from trainingset.
+
+
+### Identifying Correlated Predictors 
+Removing descriptors with absolute correlations above 0.75.
+```{r}
+descrCor<-cor(trainingset[,!(colnames(trainingset) %in% c("classe") )])
+highlyCorDescr <- findCorrelation(descrCor, cutoff = 0.75)
+new_trainingset <- trainingset[, -highlyCorDescr]
+new_testingset <-  testingset[, -highlyCorDescr]
+```
+
+```{r}
+dim(pml_training)      # Data frame before Pre-Processing
+dim(new_trainingset)   # Data frame after Pre-Processing
+```
+
+Data Splitting
+------------
+
+Typical sizes for the training and test sets: 60% in the training set, 40% in the testing set.
+
+```{r}
+set.seed(145)
+inTrain    <- createDataPartition(new_trainingset$classe, p = 0.6, list = FALSE)
+training <- new_trainingset[inTrain,]
+testing <-  new_trainingset[-inTrain,]
+```
+
+
+Model  
+------------
+Because accuracy is selected Random Forest algorithm for class value classification.
+Cross validation (CV) methods is selected to dividing data into a training and test set.
+4 is the number of folds (number of resampling iterations)
+```{r warning=FALSE}
+ctrl <- trainControl(method = "cv", number = 4)
+modelfit <- train(training$classe ~ ., method="rf", data=training, trControl=ctrl)
+modelfit
+```
+
+## Predicting in-sample error
+```{r warning=FALSE}
+rfPredict <- predict(modelfit,newdata = testing )
+confusionMatrix(rfPredict, testing$classe )
+```
+Model accuracy is 0.9921 and 95% CI : (0.9899, 0.9939)
+The error rate: 1 - accuracy =  0.79%
+
+## Plot top-20 of variable importance as measured by a Random Forest
+```{r }
+varImp(modelfit, scale=FALSE)
+```
+
+
+## Apply the machine learning algorithm to the 20 test cases in the testing data set
+```{r warning=FALSE}
+answers <- predict(modelfit,  newdata=testingset)
+answers 
+```
+
